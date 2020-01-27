@@ -14,12 +14,14 @@ export class DatabaseStack extends cdk.Stack {
 
     this.instance = new rds.DatabaseInstance(this, "Resource", {
       vpc: props.vpc,
+      vpcPlacement: { subnetType: ec2.SubnetType.PUBLIC },
       masterUsername: "joe",
       instanceClass: ec2.InstanceType.of(
         ec2.InstanceClass.BURSTABLE2,
         ec2.InstanceSize.MICRO
       ),
-      engine: rds.DatabaseInstanceEngine.POSTGRES
+      engine: rds.DatabaseInstanceEngine.POSTGRES,
+      deletionProtection: false
     });
   }
 }

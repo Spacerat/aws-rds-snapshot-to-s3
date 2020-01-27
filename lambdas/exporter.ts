@@ -1,6 +1,7 @@
 import * as AWS from "aws-sdk";
 import { Handler, Context, SNSEvent } from "aws-lambda";
 
+const WHITELIST = new Set(["Manual snapshot created", "Automated snapshot created"])
 const RDS = new AWS.RDS();
 
 export interface Environment {
@@ -9,7 +10,6 @@ export interface Environment {
   SnapshotArnPrefix: string
   KmsKeyArn: string;
   S3Prefix?: string;
-  
 }
 
 function checkEnvironment(env: Partial<Environment>): asserts env is NonNullable<Environment> {
@@ -26,10 +26,12 @@ export const handler: Handler = async function(
   checkEnvironment(props)
 
   const message = JSON.parse(event.Records[0].Sns.Message);
-  console.log("Message received from SNS:", message);
+  const eventMessage = message["Event Message"]
 
-  if (message["Event Message"] != "Manual snapshot created") {
-      console.log("Wrong message")
+  console.log("Message received from SNS:", eventMessage, message);
+
+  if (!WHITELIST.has(eventMessage)) {
+      console.log(`Wrong event ${eventMessage}, waiting for one of ${Array.from(WHITELIST)}`)
       return
   }
 
@@ -39,16 +41,20 @@ export const handler: Handler = async function(
   }
   const uuid = context.awsRequestId;
 
-  const exportTaskArgs = {
+  const exportTaskArgs: AWS.RDS.Types.StartExportTaskMessage = {
     IamRoleArn: props.IamRoleArn,
     ExportTaskIdentifier: `${identifier}-${uuid}`,
     SourceArn: `${props.SnapshotArnPrefix}:${identifier}`,
     KmsKeyId: props.KmsKeyArn,
     S3BucketName: props.S3BucketName,
-    S3Prefix: props.S3Prefix
+    S3Prefix: props.S3Prefix ? trimTrailingSlash(props.S3Prefix) : undefined
   }
 
   console.log("Going to run export", exportTaskArgs)
-
   return RDS.startExportTask(exportTaskArgs).promise()
+
 };
+
+function trimTrailingSlash(s: string): string {
+    return s.endsWith('/') ? s.slice(0, -1) : s
+}

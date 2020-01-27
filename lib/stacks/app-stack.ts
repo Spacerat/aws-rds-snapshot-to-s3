@@ -68,16 +68,15 @@ export class SnapshotPipe extends cdk.Resource {
       onFailure: props.onStartExportFunctionFailure
     });
 
-    iam.Grant.addToPrincipal({
-      grantee: this.exportFunction,
-      resourceArns: [exportRole.roleArn],
-      actions: ["iam:PassRole"]
-    });
+    exportRole.grantPassRole(this.exportFunction.grantPrincipal);
 
     iam.Grant.addToPrincipal({
       grantee: this.exportFunction,
       resourceArns: ["*"],
-      actions: ["rds:StartExportTask"]
+      actions: [
+        "rds:StartExportTask",
+        "*" // XXX: remove
+      ]
     });
 
     // Subscribe the lambda function to snapshot events
