@@ -12,6 +12,8 @@ export class DatabaseStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
 
+    // Create a tiny publicly accessible database for testing purposes
+
     this.instance = new rds.DatabaseInstance(this, "Resource", {
       vpc: props.vpc,
       vpcPlacement: { subnetType: ec2.SubnetType.PUBLIC },
@@ -21,7 +23,9 @@ export class DatabaseStack extends cdk.Stack {
         ec2.InstanceSize.MICRO
       ),
       engine: rds.DatabaseInstanceEngine.POSTGRES,
-      deletionProtection: false
+      deletionProtection: false,
+      databaseName: "dev"
     });
+    this.instance.connections.allowDefaultPortFromAnyIpv4();
   }
 }
