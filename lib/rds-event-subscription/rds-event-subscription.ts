@@ -54,7 +54,7 @@ export interface EventSubscriptionProps extends cdk.ResourceProps {
   };
 }
 
-export interface IEventSubscription {}
+export interface IEventSubscription extends cdk.IResource {}
 
 /**
  * EventSubscription configures RDS to publish events to an SNS topic.

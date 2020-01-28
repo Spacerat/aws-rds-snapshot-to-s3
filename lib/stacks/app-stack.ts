@@ -9,8 +9,6 @@ export class AppStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: AppProps) {
     super(scope, id, props);
 
-    // Subscribe
-
     new SnapshotExtractor(this, "Pipe", {
       bucket: new s3.Bucket(this, "Output"),
       key: new kms.Key(this, "Key"),
