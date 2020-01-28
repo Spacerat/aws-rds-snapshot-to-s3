@@ -1,8 +1,10 @@
 import * as AWS from "aws-sdk";
 import { Handler, Context, SNSEvent } from "aws-lambda";
 
+const MAX_EXPORT_TASK_IDENT_LENGTH = 60
 const WHITELIST = new Set(["Manual snapshot created", "Automated snapshot created"])
 const RDS = new AWS.RDS();
+
 
 export interface Environment {
   IamRoleArn: string;
@@ -41,13 +43,16 @@ export const handler: Handler = async function(
   }
   const uuid = context.awsRequestId;
 
+  const ExportTaskIdentifier = trimTrailing('-', `${identifier}-${uuid}`.slice(0, MAX_EXPORT_TASK_IDENT_LENGTH))
+  const S3Prefix = props.S3Prefix ? trimTrailing('/', props.S3Prefix) : undefined
+
   const exportTaskArgs: AWS.RDS.Types.StartExportTaskMessage = {
     IamRoleArn: props.IamRoleArn,
-    ExportTaskIdentifier: `${identifier}-${uuid}`,
+    ExportTaskIdentifier,
     SourceArn: `${props.SnapshotArnPrefix}:${identifier}`,
     KmsKeyId: props.KmsKeyArn,
     S3BucketName: props.S3BucketName,
-    S3Prefix: props.S3Prefix ? trimTrailingSlash(props.S3Prefix) : undefined
+    S3Prefix
   }
 
   console.log("Going to run export", exportTaskArgs)
@@ -55,6 +60,6 @@ export const handler: Handler = async function(
 
 };
 
-function trimTrailingSlash(s: string): string {
-    return s.endsWith('/') ? s.slice(0, -1) : s
+function trimTrailing(what:string, from: string): string {
+    return from.endsWith(what) ? from.slice(0, -what.length) : from
 }

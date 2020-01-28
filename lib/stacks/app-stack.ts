@@ -42,6 +42,7 @@ export class SnapshotPipe extends cdk.Resource {
     props.bucket.grantDelete(exportRole, prefixAll);
     props.bucket.grantRead(exportRole, prefix);
     props.bucket.grantRead(exportRole, prefixAll);
+    // props.key.grantDecrypt(exportRole);
 
     // Create a lambda function which responds to snapshots by starting an export
 
@@ -72,12 +73,12 @@ export class SnapshotPipe extends cdk.Resource {
 
     iam.Grant.addToPrincipal({
       grantee: this.exportFunction,
-      resourceArns: ["*"],
-      actions: [
-        "rds:StartExportTask",
-        "*" // XXX: remove
-      ]
+      actions: ["rds:StartExportTask"],
+      resourceArns: ["*"]
     });
+
+    // https://stackoverflow.com/questions/45821144/minimal-kms-permissions-to-copy-a-database-snapshot
+    props.key.grant(this.exportFunction, "kms:DescribeKey", "kms:CreateGrant");
 
     // Subscribe the lambda function to snapshot events
 
