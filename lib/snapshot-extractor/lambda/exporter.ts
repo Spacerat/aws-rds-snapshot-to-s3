@@ -24,6 +24,9 @@ export const handler: Handler = async function(
   event: SNSEvent,
   context: Context
 ) {
+
+  // Receive and check the message
+
   const props = process.env;
   checkEnvironment(props)
 
@@ -41,10 +44,15 @@ export const handler: Handler = async function(
   if (!identifier) {
       throw new Error("Message is missing Source ID")
   }
+
+  // Sanitize the input arguments
+
   const uuid = context.awsRequestId;
 
   const ExportTaskIdentifier = trimTrailing('-', `${identifier}-${uuid}`.slice(0, MAX_EXPORT_TASK_IDENT_LENGTH))
   const S3Prefix = props.S3Prefix ? trimTrailing('/', props.S3Prefix) : undefined
+
+  // Call the StartExportTask API
 
   const exportTaskArgs: AWS.RDS.Types.StartExportTaskMessage = {
     IamRoleArn: props.IamRoleArn,
