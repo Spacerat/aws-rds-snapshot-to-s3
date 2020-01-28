@@ -1,14 +1,5 @@
-# Welcome to your CDK TypeScript project!
+# Automated RDS Snapshot Export
 
-This is a blank project for TypeScript development with CDK.
+This project demonstrates how CDK can be used to configure RDS snapshots to automatically export to S3 as parquet files, using AWS RDS's [Snapshot Export to S3](https://aws.amazon.com/about-aws/whats-new/2020/01/announcing-amazon-relational-database-service-snapshot-export-to-s3/) feature.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
-
-## Useful commands
-
- * `npm run build`   compile typescript to js
- * `npm run watch`   watch for changes and compile
- * `npm run test`    perform the jest unit tests
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk synth`       emits the synthesized CloudFormation template
+![Stacks](doc/architecture.png)

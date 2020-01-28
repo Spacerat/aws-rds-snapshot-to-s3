@@ -1,0 +1,23 @@
+digraph architecture {
+  rankdir=TB;
+  
+  CreateDBSnapshot [shape=rectangle];
+  StartExportTask [shape=rectangle];
+  EventSubscription [label="RDS Event Subscription"]
+  SNS [label="SNS Topic"]
+  
+  {
+  edge [style=dotted];
+  CreateDBSnapshot -> EventSubscription
+  EventSubscription -> SNS
+  SNS -> Lambda
+  Lambda -> StartExportTask
+  }
+
+  RDS -> CreateDBSnapshot -> Snapshot
+  Snapshot -> StartExportTask
+  StartExportTask -> S3
+
+  { rank=same; RDS CreateDBSnapshot Snapshot StartExportTask S3 };
+
+}
