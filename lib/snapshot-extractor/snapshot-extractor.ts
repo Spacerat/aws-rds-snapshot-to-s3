@@ -9,21 +9,44 @@ import * as rds_events from "../rds-event-subscription";
 import { Environment as FunctionEnvironment } from "./lambda/exporter";
 import * as path from "path";
 
-export interface SnapshotExtractorProps extends cdk.ResourceProps {
+/** Properties of a new SnapshotExtractor */
+export interface SnapshotExtractorProps {
+  /** The S3 bucket to export snapshots to */
   bucket: s3.IBucket;
+
+  /** The KMS key used to encrypt the export */
   key: kms.IKey;
+
+  /** The path within the bucket to export snapshots to */
   prefix?: string;
-  onStartExportFunctionFailure?: lambda.IDestination;
+
+  /** Optionally specify a destination to notify when the lambda function succeeds */
   onStartExportFunctionSuccess?: lambda.IDestination;
+
+  /** Optionally specify a destination to notify when the lambda function fails */
+  onStartExportFunctionFailure?: lambda.IDestination;
 }
 
-export class SnapshotExtractor extends cdk.Resource {
-  public readonly topic: sns.ITopic;
+/** Interface for an automatic RDS to S3 Snapshot Extractor service */
+export interface ISnapshotExtractor extends cdk.IConstruct {
+  /** An SNS topic which receives RDS snapshot events  */
+  readonly snapshotTopic: sns.ITopic;
+
+  /** The lambda function which starts export tasks */
+  readonly exportFunction: lambda.IFunction;
+}
+
+/** Create a new automatic RDS to S3 Snapshot Extractor service */
+export class SnapshotExtractor extends cdk.Construct
+  implements ISnapshotExtractor {
+  public readonly snapshotTopic: sns.ITopic;
   public readonly exportFunction: lambda.IFunction;
+
   constructor(scope: cdk.Construct, id: string, props: SnapshotExtractorProps) {
-    super(scope, id, props);
+    super(scope, id);
 
     // Create a role which grants RDS access to S3
+
     const RDS = new iam.ServicePrincipal("export.rds.amazonaws.com");
     const exportRole = new iam.Role(this, "ExportRole", { assumedBy: RDS });
     const { prefix = "" } = props;
@@ -39,7 +62,7 @@ export class SnapshotExtractor extends cdk.Resource {
       IamRoleArn: exportRole.roleArn,
       S3BucketName: props.bucket.bucketName,
       KmsKeyArn: props.key.keyArn,
-      SnapshotArnPrefix: this.stack.formatArn({
+      SnapshotArnPrefix: cdk.Stack.of(this).formatArn({
         service: "rds",
         resource: "snapshot"
       })
@@ -58,11 +81,13 @@ export class SnapshotExtractor extends cdk.Resource {
       onFailure: props.onStartExportFunctionFailure
     });
     exportRole.grantPassRole(this.exportFunction.grantPrincipal);
-    iam.Grant.addToPrincipal({
-      grantee: this.exportFunction,
-      actions: ["rds:StartExportTask"],
-      resourceArns: ["*"]
-    });
+
+    this.exportFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["rds:StartExportTask"],
+        resources: ["*"]
+      })
+    );
 
     // The export function requires the same permissions as those needed to copy a database snapshot.
     // https://stackoverflow.com/questions/45821144/minimal-kms-permissions-to-copy-a-database-snapshot
@@ -70,17 +95,17 @@ export class SnapshotExtractor extends cdk.Resource {
 
     // Subscribe the lambda function to snapshot events
 
-    this.topic = new sns.Topic(this, "topic", {
+    this.snapshotTopic = new sns.Topic(this, "topic", {
       displayName: "Topic for RDS snapshot creation events."
     });
 
     new rds_events.EventSubscription(this, "Subscription", {
-      topic: this.topic,
+      topic: this.snapshotTopic,
       source: { type: rds_events.SourceType.Snapshot },
       eventCategories: [rds_events.EventCategory.Creation]
     });
 
-    this.topic.addSubscription(
+    this.snapshotTopic.addSubscription(
       new subs.LambdaSubscription(this.exportFunction)
     );
   }
