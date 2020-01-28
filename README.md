@@ -4,6 +4,6 @@ This project demonstrates how CDK can be used to configure RDS snapshots to auto
 
 ![Stacks](doc/architecture.png)
 
-### This repo
+### This repo
 
 The pipeline is implemented as its own [construct](lib/snapshot-extractor/snapshot-extractor.ts) which is instantiated in the [App Stack](lib/stacks/app-stack.ts). The other stacks just exist to set up the example VPC & database.
