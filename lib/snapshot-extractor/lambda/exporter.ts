@@ -1,56 +1,72 @@
 import * as AWS from "aws-sdk";
 import { Handler, Context, SNSEvent } from "aws-lambda";
 
-const MAX_EXPORT_TASK_IDENT_LENGTH = 60
-const WHITELIST = new Set(["Manual snapshot created", "Automated snapshot created"])
+const MAX_IDENT_LEN = 60;
+
 const RDS = new AWS.RDS();
 
-
-export interface Environment {
+export type Environment = {
   IamRoleArn: string;
   S3BucketName: string;
-  SnapshotArnPrefix: string
+  SnapshotArnPrefix: string;
   KmsKeyArn: string;
   S3Prefix?: string;
-}
+  Events: string;
+  PrefixFilter?: string;
+};
 
-function checkEnvironment(env: Partial<Environment>): asserts env is NonNullable<Environment> {
-    if (!env.IamRoleArn) throw new Error("Missing IamRoleArn")
-    if (!env.S3BucketName) throw new Error("Missing S3BucketName")
-    if (!env.KmsKeyArn) throw new Error("Missing KmsKeyArn")
+function checkEnvironment(env: Partial<Environment>): asserts env is NonNullable<Environment>  {
+  if (!env.IamRoleArn) throw new Error("Missing IamRoleArn");
+  if (!env.S3BucketName) throw new Error("Missing S3BucketName");
+  if (!env.KmsKeyArn) throw new Error("Missing KmsKeyArn");
+  if (!env.Events) throw new Error("Missing events");
 }
 
 export const handler: Handler = async function(
   event: SNSEvent,
   context: Context
 ) {
-
-  // Receive and check the message
+  // Decode and check the message and function environment
 
   const props = process.env;
-  checkEnvironment(props)
+  checkEnvironment(props);
+
+  const events = new Set(props.Events.split(","));
 
   const message = JSON.parse(event.Records[0].Sns.Message);
-  const eventMessage = message["Event Message"]
+  const eventMessage = message["Event Message"];
 
   console.log("Message received from SNS:", eventMessage, message);
 
-  if (!WHITELIST.has(eventMessage)) {
-      console.log(`Wrong event ${eventMessage}, waiting for one of ${Array.from(WHITELIST)}`)
-      return
+  if (!events.has(eventMessage)) {
+    console.log(
+      `Wrong event ${eventMessage}, waiting for one of ${Array.from(events)}`
+    );
+    return;
   }
 
   const identifier: string = message["Source ID"];
   if (!identifier) {
-      throw new Error("Message is missing Source ID")
+    throw new Error("Message is missing Source ID");
   }
 
-  // Sanitize the input arguments
+  if (props.PrefixFilter && !identifier.startsWith(props.PrefixFilter)) {
+    console.log(
+      `Ignoring snapshot ${identifier} which does not start with ${props.PrefixFilter}`
+    );
+  }
+
+  // Sanitize the message parameters
 
   const uuid = context.awsRequestId;
 
-  const ExportTaskIdentifier = trimTrailing('-', `${identifier}-${uuid}`.slice(0, MAX_EXPORT_TASK_IDENT_LENGTH))
-  const S3Prefix = props.S3Prefix ? trimTrailing('/', props.S3Prefix) : undefined
+  const ExportTaskIdentifier = trimTrailing(
+    "-",
+    `${identifier}-${uuid}`.slice(0, MAX_IDENT_LEN)
+  );
+  const S3Prefix = props.S3Prefix
+    ? trimTrailing("/", props.S3Prefix)
+    : undefined;
 
   // Call the StartExportTask API
 
@@ -61,13 +77,12 @@ export const handler: Handler = async function(
     KmsKeyId: props.KmsKeyArn,
     S3BucketName: props.S3BucketName,
     S3Prefix
-  }
+  };
 
-  console.log("Going to run export", exportTaskArgs)
-  return RDS.startExportTask(exportTaskArgs).promise()
-
+  console.log("Going to run export", exportTaskArgs);
+  return RDS.startExportTask(exportTaskArgs).promise();
 };
 
-function trimTrailing(what:string, from: string): string {
-    return from.endsWith(what) ? from.slice(0, -what.length) : from
+function trimTrailing(what: string, from: string): string {
+  return from.endsWith(what) ? from.slice(0, -what.length) : from;
 }

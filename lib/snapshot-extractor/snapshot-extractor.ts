@@ -9,6 +9,15 @@ import * as rds_events from "../rds-event-subscription";
 import { Environment as FunctionEnvironment } from "./lambda/exporter";
 import * as path from "path";
 
+// SnapshotTypeSpec asserts that at least one type is specified
+type SnapshotTypeSpec =
+  | { manual: true; automated?: false }
+  | { manual?: false; automated: true }
+  | { manual: true; automated: true };
+
+const MANUAL_SNAPSHOT = "Manual snapshot created";
+const AUTOMATED_SNAPSHOT = "Automated snapshot created";
+
 /** Properties of a new SnapshotExtractor */
 export interface SnapshotExtractorProps {
   /** The S3 bucket to export snapshots to */
@@ -25,6 +34,15 @@ export interface SnapshotExtractorProps {
 
   /** Optionally specify a destination to notify when the lambda function fails */
   onStartExportFunctionFailure?: lambda.IDestination;
+
+  /** The types (manual, automated) of snapshot to export */
+  snapshotTypes: SnapshotTypeSpec;
+
+  /** Filter snapshots by name */
+  filterSnapshotName?: {
+    /** Filter by name prefix */
+    prefix: string;
+  };
 }
 
 /** Interface for an automatic RDS to S3 Snapshot Extractor service */
@@ -58,18 +76,22 @@ export class SnapshotExtractor extends cdk.Construct
 
     // Create a lambda function which responds to snapshots by starting an export
 
+    const snapshotTypes = [];
+    if (props.snapshotTypes.manual) snapshotTypes.push(MANUAL_SNAPSHOT);
+    if (props.snapshotTypes.automated) snapshotTypes.push(AUTOMATED_SNAPSHOT);
+
     const environment: FunctionEnvironment = {
       IamRoleArn: exportRole.roleArn,
       S3BucketName: props.bucket.bucketName,
+      S3Prefix: props.prefix,
       KmsKeyArn: props.key.keyArn,
       SnapshotArnPrefix: cdk.Stack.of(this).formatArn({
         service: "rds",
         resource: "snapshot"
-      })
+      }),
+      Events: snapshotTypes.join(","),
+      PrefixFilter: props.filterSnapshotName?.prefix
     };
-    if (props.prefix) {
-      environment.S3Prefix = props.prefix;
-    }
 
     this.exportFunction = new lambda.Function(this, "Exporter", {
       runtime: lambda.Runtime.NODEJS_12_X,

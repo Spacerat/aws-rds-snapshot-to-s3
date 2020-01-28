@@ -14,7 +14,11 @@ export class AppStack extends cdk.Stack {
     new SnapshotExtractor(this, "Pipe", {
       bucket: new s3.Bucket(this, "Output"),
       key: new kms.Key(this, "Key"),
-      prefix: "exports/"
+      prefix: "exports/",
+      snapshotTypes: {
+        manual: true,
+        automated: true
+      }
     });
   }
 }
